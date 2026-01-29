@@ -1,3 +1,10 @@
+> ⚠️ **Disclaimer**
+>
+> 🎛️ This is a hobby project that was “vibe-coded” for personal use.
+> 🔒 Security hardening and careful threat modeling may be incomplete.
+> 🧪 Behavior, stability, and edge-case handling may be insufficient.
+> 🌐 Please avoid exposing it to untrusted networks, and use it at your own risk.
+
 ## Overview
 
 LanTube is a local video browser and streamer built with Next.js. It scans a target directory, builds a lightweight SQLite index, generates thumbnails, and serves videos with HTTP range streaming for smooth playback.
