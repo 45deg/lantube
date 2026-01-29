@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Overview
 
-## Getting Started
+LanTube is a local video browser and streamer built with Next.js. It scans a target directory, builds a lightweight SQLite index, generates thumbnails, and serves videos with HTTP range streaming for smooth playback.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+ (for `node:sqlite`)
+- ffmpeg / ffprobe available in your PATH
+
+## Setup
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local` in the project root:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```dotenv
+# Absolute path to your video directory
+TARGET_DIRECTORY=/Users/you/Videos
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Enable smart thumbnail selection (optional)
+SMART_THUMB=1
+```
 
-## Learn More
+Notes:
 
-To learn more about Next.js, take a look at the following resources:
+- `TARGET_DIRECTORY` must be an absolute path.
+- When `SMART_THUMB=1`, the app samples 5 timestamps and picks the largest thumbnail file.
+- When `SMART_THUMB` is unset or `0`, it uses the 1-second frame only.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Development
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Start the dev server:
 
-## Deploy on Vercel
+```bash
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Expose the dev server to your LAN:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm dev:host
+```
+
+Open http://localhost:3000
+
+## Thumbnail Batch Tool
+
+Generate or refresh thumbnails and the SQLite index:
+
+```bash
+pnpm thumbs:build
+```
+
+Force rebuild (ignore cached thumbnails):
+
+```bash
+pnpm thumbs:build -- --rebuild
+```
+
+## Troubleshooting
+
+- If thumbnails look outdated, run the batch tool with `--rebuild`.
+- If videos fail to stream, confirm ffmpeg/ffprobe are installed and `TARGET_DIRECTORY` is correct.
+
+## License
+
+MIT

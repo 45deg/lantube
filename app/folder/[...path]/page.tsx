@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { formatDuration, getFolders, getVideosInFolder } from "@/lib/video-index";
-import { toUrlPath } from "@/lib/path-utils";
+import { notFound } from "next/navigation";
+import { formatDuration, getFolders, getVideosInFolder, folderExists } from "@/lib/video-index";
+import { decodePathSegments, joinRelPath, toUrlPath } from "@/lib/path-utils";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
+  params: Promise<{ path?: string[] }>;
   searchParams: Promise<{ sort?: string; order?: string; cols?: string }>;
 };
 
@@ -14,22 +16,50 @@ const SORT_LABELS: Record<string, string> = {
   duration: "時間",
 };
 
-export default async function Home({ searchParams }: PageProps) {
-  const sp = await searchParams;
+export default async function FolderPage({ params, searchParams }: PageProps) {
+  const [sp, p] = await Promise.all([searchParams, params]);
+  const segments = decodePathSegments(p.path);
+  const relFolder = joinRelPath(segments);
+  const exists = await folderExists(relFolder);
+  if (!exists) {
+    notFound();
+  }
+
   const sort = (sp.sort ?? "createdAt") as "createdAt" | "name" | "duration";
   const order = (sp.order ?? "desc") as "asc" | "desc";
   const cols = Math.max(1, Math.min(5, Number(sp.cols ?? 3)));
 
   const [folders, videos] = await Promise.all([
-    getFolders(""),
-    getVideosInFolder("", sort, order),
+    getFolders(relFolder),
+    getVideosInFolder(relFolder, sort, order),
   ]);
+
+  const breadcrumb = segments.map((segment, index) => {
+    const path = segments.slice(0, index + 1);
+    return {
+      name: segment,
+      path: toUrlPath(path),
+    };
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8">
-          <h1 className="text-3xl font-semibold">LanTube</h1>
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6">
+          <h1 className="text-2xl font-semibold">{segments.at(-1)}</h1>
+          <nav className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
+            <Link href="/" className="font-medium text-zinc-800">
+              トップ
+            </Link>
+            {breadcrumb.map((item) => (
+              <span key={item.path} className="flex items-center gap-2">
+                <span>/</span>
+                <Link href={`/folder/${item.path}`} className="font-medium text-zinc-800">
+                  {item.name}
+                </Link>
+              </span>
+            ))}
+          </nav>
         </div>
       </header>
 
@@ -38,7 +68,7 @@ export default async function Home({ searchParams }: PageProps) {
           <h2 className="text-lg font-semibold">フォルダ</h2>
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {folders.length === 0 ? (
-              <p className="text-sm text-zinc-500">フォルダがありません。</p>
+              <p className="text-sm text-zinc-500">サブフォルダはありません。</p>
             ) : (
               folders.map((folder) => (
                 <Link
@@ -56,14 +86,14 @@ export default async function Home({ searchParams }: PageProps) {
 
         <section>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold">トップの動画</h2>
+            <h2 className="text-lg font-semibold">動画リスト</h2>
             <div className="flex flex-wrap items-center gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-zinc-500">並び替え:</span>
                 {Object.entries(SORT_LABELS).map(([key, label]) => (
                   <Link
                     key={key}
-                    href={buildQuery("/", {
+                    href={buildQuery(`/folder/${toUrlPath(segments)}`, {
                       sort: key,
                       order: key === sort ? (order === "asc" ? "desc" : "asc") : order,
                       cols: cols.toString(),
@@ -78,7 +108,7 @@ export default async function Home({ searchParams }: PageProps) {
                   </Link>
                 ))}
                 <Link
-                  href={buildQuery("/", {
+                  href={buildQuery(`/folder/${toUrlPath(segments)}`, {
                     sort,
                     order: order === "asc" ? "desc" : "asc",
                     cols: cols.toString(),
@@ -93,7 +123,7 @@ export default async function Home({ searchParams }: PageProps) {
                 {[1, 2, 3, 5].map((value) => (
                   <Link
                     key={value}
-                    href={buildQuery("/", {
+                    href={buildQuery(`/folder/${toUrlPath(segments)}`, {
                       sort,
                       order,
                       cols: value.toString(),

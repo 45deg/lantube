@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:host": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "thumbs:build": "node tools/thumb-batch.mjs"
   },
   "dependencies": {
     "next": "16.1.6",
