@@ -171,12 +171,14 @@ export default async function FolderPage({ params, searchParams }: PageProps) {
                         : "thumb-frame w-full bg-zinc-100"
                     }
                   >
-                    <img
-                      src={`/api/thumb?path=${encodeURIComponent(video.path)}`}
-                      alt={video.name}
-                      className="thumb-image h-full w-full object-cover"
-                      loading="lazy"
-                    />
+                    {!video.thumbError && (
+                      <img
+                        src={`/api/thumb?path=${encodeURIComponent(video.path)}`}
+                        alt={video.name}
+                        className="thumb-image h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
                   </div>
                   <div
                     className={

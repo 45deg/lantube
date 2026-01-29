@@ -31,7 +31,9 @@ const db = new DatabaseSync(dbPath);
 initDb(db);
 
 const files = await findVideos(targetDir);
-const existingRows = db.prepare("SELECT path, updatedAt, thumb, duration FROM videos").all();
+const existingRows = db
+  .prepare("SELECT path, updatedAt, thumb, duration, thumbError FROM videos")
+  .all();
 const existingMap = new Map(existingRows.map((row) => [row.path, row]));
 const seen = new Set();
 const tasks = [];
@@ -44,11 +46,11 @@ for (const file of files) {
   const thumbRel = getThumbRelPath(rel);
   const thumbAbs = path.join(thumbsDir, thumbRel);
   const thumbExists = await fileExists(thumbAbs);
+  const hasThumbError = existing?.thumbError === 1;
   const needsUpdate =
     rebuild ||
     !existing ||
-    !thumbExists ||
-    !existing.duration ||
+    (!hasThumbError && (!thumbExists || !existing.duration)) ||
     (existing.updatedAt ?? 0) < updatedAt;
 
   if (needsUpdate) {
@@ -86,10 +88,17 @@ function initDb(database) {
       duration REAL,
       createdAt INTEGER,
       thumb TEXT,
-      updatedAt INTEGER
+      updatedAt INTEGER,
+      thumbError INTEGER DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos(folder);
   `);
+
+  const columns = database.prepare("PRAGMA table_info(videos)").all();
+  const hasThumbError = columns.some((column) => column.name === "thumbError");
+  if (!hasThumbError) {
+    database.exec("ALTER TABLE videos ADD COLUMN thumbError INTEGER DEFAULT 0");
+  }
 }
 
 async function indexSingle(dbInstance, { abs, rel, stat, updatedAt, thumbRel }) {
@@ -104,19 +113,32 @@ async function indexSingle(dbInstance, { abs, rel, stat, updatedAt, thumbRel }) 
 
     dbInstance
       .prepare(
-        `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt, thumbError)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(path) DO UPDATE SET
            folder = excluded.folder,
            name = excluded.name,
            duration = excluded.duration,
            createdAt = excluded.createdAt,
            thumb = excluded.thumb,
-           updatedAt = excluded.updatedAt`
+           updatedAt = excluded.updatedAt,
+           thumbError = excluded.thumbError`
       )
-      .run(rel, folder, name, duration, createdAt, thumbRel, updatedAt);
+      .run(rel, folder, name, duration, createdAt, thumbRel, updatedAt, 0);
   } catch (error) {
     console.error("Indexing failed", { rel, error });
+    const name = path.basename(rel, path.extname(rel));
+    const folder = path.dirname(rel) === "." ? "" : path.dirname(rel);
+    dbInstance
+      .prepare(
+        `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt, thumbError)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET
+           updatedAt = excluded.updatedAt,
+           thumbError = excluded.thumbError,
+           thumb = excluded.thumb`
+      )
+      .run(rel, folder, name, null, null, null, updatedAt, 1);
   }
 }
 

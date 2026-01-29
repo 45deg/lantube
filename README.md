@@ -1,9 +1,9 @@
 > ⚠️ **Disclaimer**
 >
-> 🎛️ This is a hobby project that was “vibe-coded” for personal use.
-> 🔒 Security hardening and careful threat modeling may be incomplete.
-> 🧪 Behavior, stability, and edge-case handling may be insufficient.
-> 🌐 Please avoid exposing it to untrusted networks, and use it at your own risk.
+> - 🎛️ This is a hobby project that was “vibe-coded” for personal use.
+> - 🔒 Security hardening and careful threat modeling may be incomplete.
+> - 🧪 Behavior, stability, and edge-case handling may be insufficient.
+> - 🌐 Please avoid exposing it to untrusted networks, and use it at your own risk.
 
 ## Overview
 

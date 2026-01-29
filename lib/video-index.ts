@@ -19,6 +19,7 @@ export type VideoItem = {
   name: string;
   duration: number | null;
   createdAt: number | null;
+  thumbError?: number | null;
 };
 
 type VideoFile = {
@@ -92,7 +93,7 @@ export async function getVideosInFolder(
   const sortColumn = sortMap[sort] ?? "createdAt";
   const rows = db
     .prepare(
-      `SELECT path, name, duration, createdAt FROM videos WHERE folder = ? ORDER BY ${sortColumn} ${orderSql}`
+      `SELECT path, name, duration, createdAt, thumbError FROM videos WHERE folder = ? ORDER BY ${sortColumn} ${orderSql}`
     )
     .all(relFolder) as VideoItem[];
   return rows;
@@ -102,7 +103,9 @@ export async function getVideoByPath(relPath: string) {
   await ensureIndex();
   const db = getDb();
   const row = db
-    .prepare("SELECT path, name, duration, createdAt, thumb FROM videos WHERE path = ?")
+    .prepare(
+      "SELECT path, name, duration, createdAt, thumb, thumbError FROM videos WHERE path = ?"
+    )
     .get(relPath) as (VideoItem & { thumb?: string | null }) | undefined;
   return row ?? null;
 }
@@ -111,9 +114,9 @@ export async function getThumbPath(relPath: string) {
   await ensureIndex();
   const db = getDb();
   const row = db
-    .prepare("SELECT thumb FROM videos WHERE path = ?")
-    .get(relPath) as { thumb?: string | null } | undefined;
-  if (!row?.thumb) {
+    .prepare("SELECT thumb, thumbError FROM videos WHERE path = ?")
+    .get(relPath) as { thumb?: string | null; thumbError?: number | null } | undefined;
+  if (!row?.thumb || row.thumbError) {
     return null;
   }
   return path.join(thumbsDir, row.thumb);
@@ -126,11 +129,14 @@ async function buildIndex() {
 
   const files = await findVideos(targetDir);
   const db = getDb();
-  const existingRows = db.prepare("SELECT path, updatedAt, thumb, duration FROM videos").all() as {
+  const existingRows = db
+    .prepare("SELECT path, updatedAt, thumb, duration, thumbError FROM videos")
+    .all() as {
     path: string;
     updatedAt?: number | null;
     thumb?: string | null;
     duration?: number | null;
+    thumbError?: number | null;
   }[];
   const existingMap = new Map(existingRows.map((row) => [row.path, row]));
   const seen = new Set<string>();
@@ -144,10 +150,10 @@ async function buildIndex() {
     const thumbRel = getThumbRelPath(rel);
     const thumbAbs = path.join(thumbsDir, thumbRel);
     const thumbExists = await fileExists(thumbAbs);
+    const hasThumbError = existing?.thumbError === 1;
     const needsUpdate =
       !existing ||
-      !thumbExists ||
-      !existing.duration ||
+      (!hasThumbError && (!thumbExists || !existing.duration)) ||
       (existing.updatedAt ?? 0) < updatedAt;
 
     if (needsUpdate) {
@@ -196,18 +202,30 @@ async function indexSingle({
 
     const db = getDb();
     db.prepare(
-      `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt, thumbError)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(path) DO UPDATE SET
          folder = excluded.folder,
          name = excluded.name,
          duration = excluded.duration,
          createdAt = excluded.createdAt,
          thumb = excluded.thumb,
-         updatedAt = excluded.updatedAt`
-    ).run(rel, folder, name, duration, createdAt, thumbRel, updatedAt);
+         updatedAt = excluded.updatedAt,
+         thumbError = excluded.thumbError`
+    ).run(rel, folder, name, duration, createdAt, thumbRel, updatedAt, 0);
   } catch (error) {
     console.error("Indexing failed", { rel, error });
+    const db = getDb();
+    const name = path.basename(rel, path.extname(rel));
+    const folder = path.dirname(rel) === "." ? "" : path.dirname(rel);
+    db.prepare(
+      `INSERT INTO videos (path, folder, name, duration, createdAt, thumb, updatedAt, thumbError)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(path) DO UPDATE SET
+         updatedAt = excluded.updatedAt,
+         thumbError = excluded.thumbError,
+         thumb = excluded.thumb`
+    ).run(rel, folder, name, null, null, null, updatedAt, 1);
   }
 }
 

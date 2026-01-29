@@ -21,8 +21,19 @@ export function initDb() {
       duration REAL,
       createdAt INTEGER,
       thumb TEXT,
-      updatedAt INTEGER
+      updatedAt INTEGER,
+      thumbError INTEGER DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_videos_folder ON videos(folder);
   `);
+
+  /*
+  const columns = database
+    .prepare("PRAGMA table_info(videos)")
+    .all() as { name: string }[];
+  const hasThumbError = columns.some((column) => column.name === "thumbError");
+  if (!hasThumbError) {
+    database.exec("ALTER TABLE videos ADD COLUMN thumbError INTEGER DEFAULT 0");
+  }
+  */
 }
